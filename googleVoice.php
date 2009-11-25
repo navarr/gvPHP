@@ -31,7 +31,7 @@ class GoogleVoice
 		$this->crumb = urlencode($this->match('!<input.*?name="_rnr_se".*?value="(.*?)"!ms', $html, 1));
 		
 		if(!$this->crumb)
-			{ var_dump(array($action,$html));throw new Exception("Unable to Log In to Google Voice"); }
+			{ throw new Exception("Unable to Log In to Google Voice"); }
 	}
 	// Connect $you to $them. Takes two 10 digit US phone numbers.
 	public function call($you, $them)
