@@ -4,8 +4,8 @@ class GoogleVoice
 	public $username;
 	public $password;
 
-	private $lastURL;
-	private $crumb;
+	protected $lastURL;
+	protected $crumb;
 
 	public function __construct($username, $password)
 	{
@@ -31,7 +31,7 @@ class GoogleVoice
 		$this->crumb = urlencode($this->match('!<input.*?name="_rnr_se".*?value="(.*?)"!ms', $html, 1));
 		
 		if(!$this->crumb)
-			{ throw new Exception("Unable to Log In to Google Voice"); }
+			{ var_dump(array($action,$html));throw new Exception("Unable to Log In to Google Voice"); }
 	}
 	// Connect $you to $them. Takes two 10 digit US phone numbers.
 	public function call($you, $them)
@@ -41,37 +41,29 @@ class GoogleVoice
 
 		$crumb = $this->crumb;
 
-		$post = "_rnr_se=$crumb&number=$them&call=Call";
-		$html = $this->curl("https://www.google.com/voice/m/callsms", $this->lastURL, $post);
-
-		preg_match_all('!<input.*?type="hidden".*?name="(.*?)".*?value="(.*?)"!ms', $html, $hidden);
-		$post = '';
-		for ($i = 0; $i < count($hidden[0]); $i++)
-		$post .= '&'.$hidden[1][$i].'='.urlencode($hidden[2][$i]);
-		$post .= "&phone=+1$you&Call=";
-
+		$post = "_rnr_se=$crumb&phone=$you&number=$them&call=Call";
 		$html = $this->curl("https://www.google.com/voice/m/sendcall", $this->lastURL, $post);
 	}
 	public function sms($them, $smtxt)
 	{
 		$them = preg_replace('/[^0-9]/', '', $them);
 
-		$html = $this->login();
-
 		$crumb = $this->crumb;
 
 		$post = "_rnr_se=$crumb&number=$them&smstext=$smtxt&submit=Send";
 		$html = $this->curl("https://www.google.com/voice/m/sendsms", $this->lastURL, $post);
-
-		preg_match_all('!<input.*?type="hidden".*?name="(.*?)".*?value="(.*?)"!ms', $html, $hidden);
-		$post = '';
-		for ($i = 0; $i < count($hidden[0]); $i++)
-		$post .= '&'.$hidden[1][$i].'='.urlencode($hidden[2][$i]);
-		$post .= "&submit=";
-
-		$html = $this->curl("https://www.google.com/voice/m/sendcall", $this->lastURL, $post);
 	}
-	private function curl($url, $referer = null, $post = null, $return_header = false)
+	public function get_number()
+	{
+		$raw = $this->curl("https://www.google.com/voice/m");
+		preg_match("#\<b class=\"ms3\"\>([^<]+)\</b\>#i",$raw,$matches);
+		$number = str_replace
+		(
+			array(" ","(",")","-"),
+		"",$matches[1]);
+		return "1".$number;
+	}
+	protected function curl($url, $referer = null, $post = null, $return_header = false)
 	{
 		static $tmpfile;
 
@@ -83,6 +75,8 @@ class GoogleVoice
 		curl_setopt($ch, CURLOPT_COOKIEFILE, $tmpfile);
 		curl_setopt($ch, CURLOPT_COOKIEJAR, $tmpfile);
 		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+		curl_setopt ($ch, CURLOPT_SSL_VERIFYHOST, 0);
+		curl_setopt ($ch, CURLOPT_SSL_VERIFYPEER, 0); 
 		curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (iPhone; U; CPU iPhone OS 2_2_1 like Mac OS X; en-us) AppleWebKit/525.18.1 (KHTML, like Gecko) Version/3.1.1 Mobile/5H11 Safari/525.20");
 
 		if ($referer)
@@ -106,10 +100,11 @@ class GoogleVoice
 		{
 			$html = curl_exec($ch);
 			$this->lastURL = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+			if($html === false) { throw new Exception($url." - ".curl_error($ch)); }
 			return $html;
 		}
 	}
-	private function match($regex, $str, $i = 0)
+	protected function match($regex, $str, $i = 0)
 	{
 		return preg_match($regex, $str, $match) == 1?$match[$i]:false;
 	}
